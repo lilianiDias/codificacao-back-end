@@ -4,19 +4,19 @@ const servidorWeb = http.createServer((req, res) => {
 
  console.log(` [LOG] Método Recebido: ${req.method} | Rota: ${req.url}`);
 
- const cabecalhoPadro = {
+ const cabecalhoPadrao = {
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
  };
  if(req.url === '/status') {
    res.writeHead(200,{
-     ...cabecalhoPadro,
+     ...cabecalhoPadrao,
      'Content-Type': 'application/json',
    });
    res.end(JSON.stringify({ servidorWeb: "Online" }));
     }else{
         res.writeHead(404, {
-            ...cabecalhoPadro,
+            ...cabecalhoPadrao,
             'Content-Type': 'application/json',
         });
         res.end(JSON.stringify({ erro: 'Página não encontrada !' }));
