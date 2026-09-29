@@ -1,124 +1,244 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 🖼️ NestJS Image API — Aula 11 (Módulos, Uploads e Assets Estáticos)
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Este repositório contém a aplicação prática desenvolvida durante a **Aula 11**. O objetivo principal foi compreender a arquitetura modular do **NestJS**, aprender a manipular o ciclo de vida de arquivos binários utilizando o interceptor `Multer` para realizar uploads de imagens, e configurar a aplicação Express subjacente para servir arquivos locais de forma estática e pública.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## 🧭 Índice do Documento
+1. [O que foi aprendido](#-o-que-foi-aprendido)
+2. [Estrutura de Pastas do Projeto](#-estrutura-de-pastas-do-projeto)
+3. [Explicação Detalhada do Código](#-explicação-detalhada-do-código)
+4. [Como Configurar e Executar o Projeto](#-como-configurar-e-executar-o-projeto)
+5. [Guia de Teste Manual (Passo a Passo com Imagens)](#-guia-de-teste-manual-passo-a-passo)
+6. [Testes Automatizados](#-testes-automatizados)
+7. [Padrão de Commit Utilizado](#-padrão-de-commit-utilizado)
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## 🚀 O que foi aprendido
 
-```bash
-$ npm install
+* **Arquitetura Modular Avançada:** Criação e isolamento do `ImagemModule` para manter o código limpo e escalável de acordo com os princípios do NestJS.
+* **Manipulação de Arquivos de Mídia (Multipart Form):** Captura segura de mídias usando o decorator `@UploadedFile()` e o interceptor `FileInterceptor`.
+* **Configuração de Armazenamento em Disco (`diskStorage`):** Regras de salvamento físico na máquina, gerando hashes de tempo (`Date.now()`) e números aleatórios gigantescos para impedir a colisão e sobrescrita de imagens de usuários diferentes.
+* **Validação Rigorosa de Extensões:** Bloqueio direto na API via `fileFilter` para rejeitar arquivos maliciosos, permitindo de forma estrita apenas imagens com extensões `.jpg`, `.jpeg` ou `.png`.
+* **Serviço de Assets Estáticos:** Habilitação do `NestExpressApplication` para expor uma pasta local como uma rota web acessível por navegadores.
+
+---
+
+## 📂 Estrutura de Pastas do Projeto
+
+Para o funcionamento correto do código estudado, certifique-se de que a estrutura do seu projeto está organizada da seguinte maneira:
+
+```text
+meu-projeto-nestjs/
+├── src/
+│   ├── app.controller.js
+│   ├── app.controller.spec.ts  # Testes unitários do AppController
+│   ├── app.module.js           # Módulo raiz do sistema
+│   ├── app.service.js
+│   ├── imagem.controller.js    # Controlador que recebe o upload
+│   ├── imagem.controller.spec.ts # Testes unitários do upload
+│   ├── imagem.module.js        # Submódulo focado em imagens
+│   └── main.ts                 # Arquivo de inicialização e arquivos estáticos
+├── uploads/                    # ⚠️ PASTA CRIADA NA RAIZ PARA SALVAR AS IMAGENS
+├── package.json
+└── tsconfig.json
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ npm run start
+## 💻 Explicação Detalhada do Código
 
-# watch mode
-$ npm run start:dev
+### 1. Inicialização do Servidor e Ativos Estáticos (`src/main.ts`)
+O NestJS, por padrão, abstrai o servidor HTTP. Para usar o método `useStaticAssets`, nós explicitamente tipamos a criação do servidor como `NestExpressApplication`. 
 
-# production mode
-$ npm run start:prod
+```typescript
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module.js';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
+
+async function bootstrap() {
+  // Transforma e tipa a instância da aplicação para habilitar o ecossistema Express
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  
+  // Mapeia a pasta física local 'uploads' (raiz) para responder pela URL pública '/api/uploads/'
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: 'api/uploads/',
+  });
+  
+  await app.listen(3000);
+  console.log(`🚀 Aplicação rodando em: http://localhost:3000`);
+}
+bootstrap();
 ```
 
-## Run tests
+### 2. Controlador de Imagens (`src/imagem.controller.ts`)
+Este componente expõe a rota de upload e implementa as travas de segurança e nomenclatura de arquivos.
 
-```bash
-# unit tests
-$ npm run test
+```typescript
+import { Controller, Post, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+@Controller('imagens')
+export class ImagemController {
+  
+  @Post('upload')
+  @UseInterceptors(
+    FileInterceptor('file', { // O parâmetro 'file' deve ser o mesmo nome enviado no Body da requisição
+      storage: diskStorage({
+        destination: './uploads', // Caminho relativo onde o arquivo físico ficará salvo
+        filename: (req, file, callback) => {
+          // Cria uma string única: Exemplo: "171542456-48291048.png"
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          callback(null, `${uniqueSuffix}${ext}`);
+        },
+      }),
+      fileFilter: (req, file, callback) => {
+        // Expressão regular para validar se o arquivo termina com .jpg, .jpeg ou .png
+        if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+          return callback(new BadRequestException('Apenas imagens (jpg, jpeg, png) são permitidas!'), false);
+        }
+        callback(null, true);
+      },
+    }),
+  )
+  uploadFoto(@UploadedFile() file: Express.Multer.File) {
+    // Caso o arquivo caia no filtro ou venha nulo por outro motivo, bloqueia a requisição
+    if (!file) {
+      throw new BadRequestException('Arquivo não enviado ou formato inválido.');
+    }
+    
+    // Retorna para o cliente a mensagem de sucesso e a URL pública para visualização imediata
+    return {
+      mensagem: 'Imagem enviada com sucesso!',
+      url: `http://localhost:3000/api/uploads/${file.filename}`,
+    };
+  }
+}
 ```
 
-## Deployment
+### 3. Configuração de Módulos (`src/app.module.ts` e `src/imagem.module.ts`)
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+O `ImagemModule` encapsula o controlador de imagens:
+```typescript
+import { Module } from '@nestjs/common';
+import { ImagemController } from './imagem.controller.js';
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+@Module({
+  controllers: [ImagemController],
+}) 
+export class ImagemModule {}
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+O `AppModule` importa e centraliza todos os controladores globais do projeto:
+```typescript
+import { Module } from '@nestjs/common';
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
+import { ImagemController } from './imagem.controller.js';
 
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
-
-```bash
-$ npm install @nestjs/observe
+@Module({
+  imports: [],
+  controllers: [AppController, ImagemController], // Ambos os controladores ativos no ecossistema
+  providers: [AppService],
+})
+export class AppModule {}
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
+---
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+## 🛠️ Como Configurar e Executar o Projeto
 
-## Resources
+Siga estritamente a ordem dos comandos abaixo no terminal da sua máquina para clonar e rodar o projeto do zero:
 
-Check out a few resources that may come in handy when working with NestJS:
+1. **Instalar Dependências de Terceiros:**
+   ```bash
+   npm install
+   ```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+2. **Criar a Pasta de Armazenamento:**
+   *O código está configurado para salvar arquivos em `./uploads`. Se essa pasta não existir na raiz do seu projeto, o Multer retornará um erro ao tentar salvar a imagem. Crie-a executando:*
+   ```bash
+   mkdir uploads
+   ```
 
-## Support
+3. **Executar em Modo de Desenvolvimento (Watch Mode):**
+   ```bash
+   npm run start:dev
+   ```
+   *O console exibirá a mensagem:* `Aplicação rodando em: http://localhost:3000`
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+---
 
-## Stay in touch
+## 🧪 Guia de Teste Manual (Passo a Passo)
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Passo 1: Configurar a Requisição no Postman ou Insomnia
+* **Tipo do Método:** Altere de `GET` para `POST`.
+* **URL do Endpoint:** Insira `http://localhost:3000/imagens/upload`.
+* **Guia Body (Corpo):** Selecione a opção **Form Data** (ou *Multipart Form*).
 
-## License
+### Passo 2: Configurar os Parâmetros da Tabela Body
+Insira os dados exatamente como mapeado na tabela abaixo:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+| Chave (Key) | Tipo (Type) | Valor (Value) | Descrição |
+| :--- | :--- | :--- | :--- |
+| `file` | **File** *(mude de Text para File)* | Selecione uma imagem (.png ou .jpg) | O binário da imagem do seu PC |
+
+### Passo 3: Analisar a Resposta da API
+Ao clicar em **Send**, se tudo estiver correto, você receberá um status `201 Created` e o seguinte JSON de retorno:
+
+```json
+{
+  "mensagem": "Imagem enviada com sucesso!",
+  "url": "http://localhost:3000/api/uploads/171542456000-987654321.png"
+}
+```
+
+### Passo 4: Validar o Acesso Estático
+Copie o link retornado na chave `"url"`, abra qualquer navegador de internet (Chrome, Edge, Firefox) e cole o link na barra de endereços. A imagem enviada deverá ser renderizada perfeitamente na tela.
+
+---
+
+## 🧪 Testes Automatizados (`src/imagem.controller.spec.ts`)
+
+Abaixo está o arquivo de testes unitários completo para garantir o comportamento esperado da nossa rota, mockando o comportamento do arquivo em memória (Buffer):
+
+```typescript
+import { Test, TestingModule } from '@nestjs/testing';
+import { ImagemController } from './imagem.controller.js';
+import { BadRequestException } from '@nestjs/common';
+
+describe('ImagemController', () => {
+  let controller: ImagemController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [ImagemController],
+    }).compile();
+
+    controller = module.get<ImagemController>(ImagemController);
+  });
+
+  it('deve ser definido', () => {
+    expect(controller).toBeDefined();
+  });
+
+  it('deve retornar a URL após o upload bem-sucedido', () => {
+    // Simula a estrutura Multer.File que o NestJS aguarda
+    const mockFile = {
+      filename: 'foto-teste.png',
+      originalname: 'teste.png',
+      mimetype: 'image/png',
+      buffer: Buffer.from(''),
+    } as Express.Multer.File;
+
+    const resultado = controller.uploadFoto(mockFile);
+
+    expect(resultado).toHaveProperty('mensagem', 'Imagem enviada com sucesso!');
+    expect(resultado.url).toContain('/api/uploads/foto-teste.png');
+  });
+
